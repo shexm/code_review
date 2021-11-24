@@ -745,8 +745,8 @@ function ChildReconciler(shouldTrackSideEffects) {
     // uses the same algorithm.
 
 
-    let resultingFirstChild: Fiber | null = null;
-    let previousNewFiber: Fiber | null = null;
+    let resultingFirstChild: Fiber | null = null; // resultingFirstChild是第一个新生成的fiber，当同层的fiber链全部处理完成，返回resultingFirstChild，结束diff
+    let previousNewFiber: Fiber | null = null; // 上一个遍历ReactElement生成的fiber，会将sibling赋值为新生成的fiber
 
     let oldFiber = currentFirstChild;
     let lastPlacedIndex = 0; // 上一个不需要标记的newFiber对应的oldFiber的index
@@ -768,6 +768,7 @@ function ChildReconciler(shouldTrackSideEffects) {
         lanes,
       );
       if (newFiber === null) {
+        // 可能fiber本身就为空，而不是因为发生改变返回了null，所以官方说算法需要改进
         // TODO: This breaks on empty slots like null children. That's
         // unfortunate because it triggers the slow path all the time. We need
         // a better way to communicate whether this was a miss or null,
@@ -784,13 +785,7 @@ function ChildReconciler(shouldTrackSideEffects) {
           deleteChild(returnFiber, oldFiber);
         }
       }
-      // 从第一个newFiber开始，标记newFiber对应的oldFiber移动的点和新增的点，
-      // lastPlacedIndex为上一个不需要标记的newFiber对应的oldFiber的index
-      // 通过遍历newFiber找出其对应的oldFiber的index，如果newFiber是oldFiber移动
-      //（原来index比lastPlacedIndex小，排lastPlacedIndex对应的oldFiber前面，现在排lastPlacedIndex对应的oldFiber后面），
-      // 标记newFiber，继续用lastPlacedIndex和遍历的newFiber对应的oldFiber的index做对比
-      // 如果newFiber不用移动（原来index比lastPlacedIndex大，本来就排lastPlacedIndex对应的oldFiber后面），更新lastPlacedIndex为改
-      // newFiber对应的oldFiber的index
+      // 更新lastPlacedIndex ABCDE -> ABCED 遍历到C结束第一个循环，lastPlacedIndex = 2
       lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
       if (previousNewFiber === null) {
         // TODO: Move out of the loop. This only happens for the first run.
@@ -800,6 +795,7 @@ function ChildReconciler(shouldTrackSideEffects) {
         // I.e. if we had null values before, then we want to defer this
         // for each null value. However, we also don't want to call updateSlot
         // with the previous one.
+        // 位置没有发生变化的fiber，确定了sibling关系
         previousNewFiber.sibling = newFiber;
       }
       previousNewFiber = newFiber;
@@ -810,13 +806,13 @@ function ChildReconciler(shouldTrackSideEffects) {
       // newChildren遍历完，剩余的oldFiber都可以删除，打上ChildDeletion标记，并用数组保存起来，commit阶段先根据数组删除结点，调用卸载生命周期
       // We've reached the end of the new children. We can delete the rest.
       deleteRemainingChildren(returnFiber, oldFiber);
-      return resultingFirstChild;
+      return resultingFirstChild; // diff完成，返回fiber链
     }
 
     if (oldFiber === null) { // oldFiber遍历完
       // If we don't have any more existing children we can choose a fast path
       // since the rest will all be insertions.
-      // 第二个循环 newFiber比oldFiber多，多的部分肯定都是新增或者移动，直接打Placement标记
+      // 第二个循环 newFiber比oldFiber多，多的部分肯定都是新增，直接打Placement标记
       for (; newIdx < newChildren.length; newIdx++) { // oldFiber遍历完，如果还有newChildren，说明有新增结点
         const newFiber = createChild(returnFiber, newChildren[newIdx], lanes); // 创建newFiber
         if (newFiber === null) {
@@ -841,14 +837,14 @@ function ChildReconciler(shouldTrackSideEffects) {
     // Keep scanning and use the map to restore deleted items as moves.
     // 第三个循环 原来的oldFiber发生了变化，导致oldFiber没有遍历完就结束了，需要处理没遍历的ReactElement
     for (; newIdx < newChildren.length; newIdx++) {
-      const newFiber = updateFromMap( // 从map中找到就复用oldFiber
+      const newFiber = updateFromMap( // 从map中找到就复用oldFiber，找不到就新增（调用updateElement）
         existingChildren,
         returnFiber,
         newIdx,
         newChildren[newIdx],
         lanes,
       );
-      if (newFiber !== null) {
+      if (newFiber !== null) { // newFiber是一个ReactElement或者string
         if (shouldTrackSideEffects) {
           if (newFiber.alternate !== null) {
             // The new fiber is a work in progress, but if there exists a
@@ -860,6 +856,13 @@ function ChildReconciler(shouldTrackSideEffects) {
             );
           }
         }
+        // 从第一个newFiber开始，标记newFiber对应的oldFiber移动的点和新增的点，
+        // lastPlacedIndex为上一个不需要标记的newFiber对应的oldFiber的index
+        // 通过遍历newFiber找出其对应的oldFiber的index，如果newFiber是oldFiber移动
+        //（原来index比lastPlacedIndex小，排lastPlacedIndex对应的oldFiber前面，现在排lastPlacedIndex对应的oldFiber后面），
+        // 标记newFiber，继续用lastPlacedIndex和遍历的newFiber对应的oldFiber的index做对比
+        // 如果newFiber不用移动（原来index比lastPlacedIndex大，本来就排lastPlacedIndex对应的oldFiber后面），更新lastPlacedIndex为改
+        // newFiber对应的oldFiber的index
         lastPlacedIndex = placeChild(newFiber, lastPlacedIndex, newIdx);
         if (previousNewFiber === null) {
           resultingFirstChild = newFiber;

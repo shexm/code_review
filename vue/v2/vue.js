@@ -6462,7 +6462,7 @@
       // diff算法 双向遍历
       while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
         if (isUndef(oldStartVnode)) {
-          // 该结点之前已经通过对比key的方式（最后一个else）被处理，原来不是一个，却先于第一个被处理所以是左移，移动到第一个前
+          // 该结点之前已经通过对比key的方式（最后一个else）被处理，原来不是第一个，却先于第一个被处理所以是左移，移动到第一个前
           oldStartVnode = oldCh[++oldStartIdx]; // Vnode has been moved left
         } else if (isUndef(oldEndVnode)) {
           oldEndVnode = oldCh[--oldEndIdx];
@@ -6493,7 +6493,7 @@
             createElm(newStartVnode, insertedVnodeQueue, parentElm, oldStartVnode.elm, false, newCh, newStartIdx);
           } else { // oldVnode存在相同key的newVnode
             vnodeToMove = oldCh[idxInOld]; // 需要移动的oldVnode
-            if (sameVnode(vnodeToMove, newStartVnode)) { // 结点相同，可以复用
+            if (sameVnode(vnodeToMove, newStartVnode)) { // 结点相同，可以复用 
               patchVnode(vnodeToMove, newStartVnode, insertedVnodeQueue, newCh, newStartIdx);
               oldCh[idxInOld] = undefined;
               canMove && nodeOps.insertBefore(parentElm, vnodeToMove.elm, oldStartVnode.elm);
