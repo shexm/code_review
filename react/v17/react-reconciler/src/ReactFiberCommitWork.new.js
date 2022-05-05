@@ -330,7 +330,7 @@ function commitBeforeMutationEffects_begin() {
       child !== null
     ) { // child有BeforeMutationMask的标识，
       ensureCorrectReturnPointer(child, fiber); // child.return = fiber
-      nextEffect = child; // 先遍历到最深层需要处理的child，将当前需要处理的fiber标记为该child
+      nextEffect = child; // 先遍历每一层第一个节点到需要处理的child的最深层，将当前需要处理的fiber标记为该child
     } else {
       // 处理最深层需要处理的child，如果child有兄弟结点，
       // 通过改变全局nextEffect为child的兄弟结点并且结束commitBeforeMutationEffects_complete执行重新进入该while循环
@@ -1473,7 +1473,7 @@ function unmountHostComponents(
     }
 
     if (node.tag === HostComponent || node.tag === HostText) { // DOM结点或文本结点
-       // 函数组件执行layout effect的销毁机制，类组件执行componentWillUnmount
+       // 函数组件执行useLayoutEffect的销毁机制，类组件执行componentWillUnmount
       commitNestedUnmounts(finishedRoot, node, nearestMountedAncestor);
       // After all the children have unmounted, it is now safe to remove the
       // node from the tree.
@@ -1910,9 +1910,9 @@ function commitMutationEffects_begin(root: FiberRoot) {
     }
 
     const child = fiber.child;
-    // 遍历整棵wip树，一直遍历fiber下去直到fiber的子fiber没有Mutation标记，然后执行commitMutationEffects_complete会使该函数遍历到子fiber的兄弟fiber
+    // 遍历整棵wip树，一直遍历第一个fiber下去直到fiber的子fiber没有Mutation标记，然后执行commitMutationEffects_complete会使该函数遍历到子fiber的兄弟fiber
     if ((fiber.subtreeFlags & MutationMask) !== NoFlags && child !== null) {
-      ensureCorrectReturnPointer(child, fiber);
+      ensureCorrectReturnPointer(child, fiber); // child.return = fiber
       nextEffect = child;
     } else {
       commitMutationEffects_complete(root);

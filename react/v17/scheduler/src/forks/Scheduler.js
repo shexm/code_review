@@ -117,22 +117,22 @@ function advanceTimers(currentTime) {
 
 function handleTimeout(currentTime) {
   isHostTimeoutScheduled = false;
-  advanceTimers(currentTime); // 遍历timerQueue，将开始任务导入taskQueue
+  advanceTimers(currentTime); // 遍历timerQueue，将已经到期的任务导入taskQueue
 
   if (!isHostCallbackScheduled) {
     if (peek(taskQueue) !== null) {
-      isHostCallbackScheduled = true; // 执行taskQueue中的任务
-      requestHostCallback(flushWork);
-    } else { // 没有开始的任务，没有任务或没到任务开始时间
-      const firstTimer = peek(timerQueue);
-      if (firstTimer !== null) { // 有任务但没有开始时间
-        requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime); // 定时递归调用自己
+      isHostCallbackScheduled = true; // 执行taskQueue中的任务,之后任务会通过messageChannel执行
+      requestHostCallback(flushWork); // 发起任务调度
+    } else { // 没有开始的任务，没有任务或没到任务开始时间，开始任务会被放入taskQueue
+      const firstTimer = peek(timerQueue); // 获取timerQueue优先级最高的任务
+      if (firstTimer !== null) { // 有任务但没有到开始时间
+        requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime); // 定时调用自己
       }
     }
   }
 }
 
-function flushWork(hasTimeRemaining, initialTime) { // 执行者
+function flushWork(hasTimeRemaining, initialTime) { // 执行者 scheduledHostCallback(hasTimeRemaining, currentTime){}
   if (enableProfiling) {
     markSchedulerUnsuspended(initialTime);
   }
@@ -146,7 +146,7 @@ function flushWork(hasTimeRemaining, initialTime) { // 执行者
   }
 
   isPerformingWork = true;
-  const previousPriorityLevel = currentPriorityLevel;
+  const previousPriorityLevel = currentPriorityLevel; // 保存现在的优先级
   try {
     if (enableProfiling) {
       try {
@@ -186,7 +186,7 @@ function workLoop(hasTimeRemaining, initialTime) {
       currentTask.expirationTime > currentTime &&
       (!hasTimeRemaining || shouldYieldToHost())
     ) {
-      // 任务未过期，没有时间执行，任务就被打断
+      // 任务未过期，没有时间执行，任务就被打断，如果过期了就会同步执行不会打断了
       // This currentTask hasn't expired, and we've reached the deadline.
       break;
     }
@@ -198,15 +198,15 @@ function workLoop(hasTimeRemaining, initialTime) {
       if (enableProfiling) {
         markTaskRun(currentTask, currentTime);
       }
-      const continuationCallback = callback(didUserCallbackTimeout);
+      const continuationCallback = callback(didUserCallbackTimeout); // 完成返回null performConcurrentWorkOnRoot(root, didTimeout){}
       currentTime = getCurrentTime();
-      // 任务没有完成也没有被插队
+      // 任务没有完成也没有被高优先级任务插队而取消会返回任务本身
       if (typeof continuationCallback === 'function') { // performConcurrentWorkOnRoot.bind(null, root)
         currentTask.callback = continuationCallback;
         if (enableProfiling) {
           markTaskYield(currentTask, currentTime);
         }
-      } else {
+      } else { // continuationCallback = null 任务执行完，从taskQueue删除该任务
         if (enableProfiling) {
           markTaskCompleted(currentTask, currentTime);
           currentTask.isQueued = false;
@@ -346,7 +346,7 @@ function unstable_scheduleCallback(priorityLevel, callback, options) {
     newTask.isQueued = false;
   }
 
-  if (startTime > currentTime) {
+  if (startTime > currentTime) { // 任务未到期，排进timerQueue
     // This is a delayed task.
     newTask.sortIndex = startTime;
     push(timerQueue, newTask);
@@ -359,9 +359,9 @@ function unstable_scheduleCallback(priorityLevel, callback, options) {
         isHostTimeoutScheduled = true;
       }
       // Schedule a timeout.
-      requestHostTimeout(handleTimeout, startTime - currentTime);
+      requestHostTimeout(handleTimeout, startTime - currentTime); // 定时将timerQueue到期任务导入taskQueue
     }
-  } else {
+  } else { // 任务已到期，排进taskQueue
     newTask.sortIndex = expirationTime;
     push(taskQueue, newTask);
     if (enableProfiling) {
@@ -372,7 +372,7 @@ function unstable_scheduleCallback(priorityLevel, callback, options) {
     // wait until the next time we yield.
     if (!isHostCallbackScheduled && !isPerformingWork) {
       isHostCallbackScheduled = true;
-      requestHostCallback(flushWork);
+      requestHostCallback(flushWork); // 发起调度来执行任务
     }
   }
 
@@ -503,7 +503,7 @@ const performWorkUntilDeadline = () => {
     // Yield after `yieldInterval` ms, regardless of where we are in the vsync
     // cycle. This means there's always time remaining at the beginning of
     // the message event.
-    deadline = currentTime + yieldInterval; // 过期时间 = 现在时间 + 时间片时间（5ms）
+    deadline = currentTime + yieldInterval; // 过期时间 = 现在时间 + 时间片时间（5ms）任务过期被打断yield渲染
     const hasTimeRemaining = true;
 
     // If a scheduler task throws, exit the current browser task so the
@@ -514,12 +514,13 @@ const performWorkUntilDeadline = () => {
     // `hasMoreWork` will remain true, and we'll continue the work loop.
     let hasMoreWork = true;
     try {
-      hasMoreWork = scheduledHostCallback(hasTimeRemaining, currentTime);
+      hasMoreWork = scheduledHostCallback(hasTimeRemaining, currentTime); // 执行任务，任务完成返回null，未完成返回任务本身
     } finally {
-      if (hasMoreWork) { // 任务被中断
+      if (hasMoreWork) {
+        // 还有任务，下一帧messageChannel port1.onmessage 执行
         // If there's more work, schedule the next message event at the end
         // of the preceding one.
-        schedulePerformWorkUntilDeadline();
+        schedulePerformWorkUntilDeadline(); // port.postMessage(null); 发起调度，下一帧继续执行任务
       } else {
         isMessageLoopRunning = false;
         scheduledHostCallback = null;
@@ -565,8 +566,8 @@ if (typeof localSetImmediate === 'function') {
   };
 }
 
-function requestHostCallback(callback) {
-  scheduledHostCallback = callback;
+function requestHostCallback(callback) { // 发起调度
+  scheduledHostCallback = callback; // flushwork
   if (!isMessageLoopRunning) {
     isMessageLoopRunning = true;
     schedulePerformWorkUntilDeadline();

@@ -167,7 +167,7 @@ function applyDerivedStateFromProps(
   ctor: any,
   getDerivedStateFromProps: (props: any, state: any) => any,
   nextProps: any,
-) {
+) { // 从props获取state初始值，props会覆盖state
   const prevState = workInProgress.memoizedState;
   let partialState = getDerivedStateFromProps(nextProps, prevState);
   // Merge the partial state and the previous state.
@@ -914,7 +914,7 @@ function updateClassInstance(
   }
 
   const getDerivedStateFromProps = ctor.getDerivedStateFromProps;
-  const hasNewLifecycles =
+  const hasNewLifecycles = // 用了getDerivedStateFromProps这个新的生命周期
     typeof getDerivedStateFromProps === 'function' ||
     typeof instance.getSnapshotBeforeUpdate === 'function';
 
@@ -925,7 +925,7 @@ function updateClassInstance(
   // In order to support react-lifecycles-compat polyfilled components,
   // Unsafe lifecycles should not be invoked for components using the new APIs.
   if (
-    !hasNewLifecycles &&
+    !hasNewLifecycles && // 兼容还在用componentWillReceiveProps没有用getDerivedStateFromProps这个新的生命周期
     (typeof instance.UNSAFE_componentWillReceiveProps === 'function' ||
       typeof instance.componentWillReceiveProps === 'function')
   ) {
@@ -982,7 +982,8 @@ function updateClassInstance(
     return false;
   }
 
-  if (typeof getDerivedStateFromProps === 'function') {
+  if (typeof getDerivedStateFromProps === 'function') { // 执行getDerivedStateFromProps
+    // 从props获取state初始值，props会覆盖state
     applyDerivedStateFromProps(
       workInProgress,
       ctor,
@@ -992,7 +993,7 @@ function updateClassInstance(
     newState = workInProgress.memoizedState;
   }
 
-  const shouldUpdate =
+  const shouldUpdate = // 返回false时，组件的状态依然后会更新，但是会复用子节点，不会执行render函数
     checkHasForceUpdateAfterProcessing() ||
     checkShouldComponentUpdate(
       workInProgress,

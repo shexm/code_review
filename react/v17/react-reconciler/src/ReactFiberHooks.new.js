@@ -324,7 +324,7 @@ function areHookInputsEqual(
   }
   return true;
 }
-
+// updateFunctionComponent
 export function renderWithHooks<Props, SecondArg>(
   current: Fiber | null,
   workInProgress: Fiber,
@@ -332,9 +332,9 @@ export function renderWithHooks<Props, SecondArg>(
   props: Props,
   secondArg: SecondArg,
   nextRenderLanes: Lanes,
-): any {
-  renderLanes = nextRenderLanes;
-  currentlyRenderingFiber = workInProgress;
+): any { // 生成函数组件
+  renderLanes = nextRenderLanes; // 更新任务的lanes
+  currentlyRenderingFiber = workInProgress; // 父fiber，最开始是根据root.current创建wip fiber,然后beginwork的时候创建子fiber
 
   workInProgress.memoizedState = null;
   workInProgress.updateQueue = null;
@@ -358,7 +358,7 @@ export function renderWithHooks<Props, SecondArg>(
         ? HooksDispatcherOnMount
         : HooksDispatcherOnUpdate;
 
-  let children = Component(props, secondArg);
+  let children = Component(props, secondArg); // 函数组件
 
   // Check if there was a render phase update
   if (didScheduleRenderPhaseUpdateDuringThisPass) {
@@ -478,7 +478,7 @@ export function resetHooksAfterThrow(): void {
   didScheduleRenderPhaseUpdateDuringThisPass = false;
 }
 
-function mountWorkInProgressHook(): Hook {
+function mountWorkInProgressHook(): Hook { // 创建组件使用
   const hook: Hook = {
     memoizedState: null,
 
@@ -499,28 +499,28 @@ function mountWorkInProgressHook(): Hook {
   return workInProgressHook;
 }
 
-function updateWorkInProgressHook(): Hook {
+function updateWorkInProgressHook(): Hook { // 更新下一个使用的hook
   // This function is used both for updates and for re-renders triggered by a
   // render phase update. It assumes there is either a current hook we can
   // clone, or a work-in-progress hook from a previous render pass that we can
   // use as a base. When we reach the end of the base list, we must switch to
   // the dispatcher used for mounts.
   let nextCurrentHook: null | Hook;
-  if (currentHook === null) {
+  if (currentHook === null) { // 每次执行renderWithHooks都会初始化为null
     const current = currentlyRenderingFiber.alternate; //现在的current树
-    if (current !== null) { // 修改
+    if (current !== null) { // wip fiber是更新的，current fiber取current.memoizedState为该链表第一个hook
       // hook mountXXX调用mountWorkInProgressHook产生的hook
       // 多个useXXX调用mountXXX生成的hook链表，current.memoizedState为该链表第一个hook，即第一个mountXXX产生的hook
-      nextCurrentHook = current.memoizedState;
-    } else {
+      nextCurrentHook = current.memoizedState; // current fiber下一个hook
+    } else { //  wip fiber是新生成的 挂载时还没有执行hook所以还没有生成hook链表
       nextCurrentHook = null;
     }
-  } else {
+  } else { // 前面执行过useXXX，取hook链表下一个hook
     nextCurrentHook = currentHook.next;
   }
 
   let nextWorkInProgressHook: null | Hook;
-  if (workInProgressHook === null) {
+  if (workInProgressHook === null) { // 每次执行renderWithHooks都会初始化为null
     nextWorkInProgressHook = currentlyRenderingFiber.memoizedState;
   } else {
     nextWorkInProgressHook = workInProgressHook.next;
@@ -541,7 +541,7 @@ function updateWorkInProgressHook(): Hook {
     );
     currentHook = nextCurrentHook;
 
-    const newHook: Hook = { // 类似于类组件fiber.updateQueue
+    const newHook: Hook = {
       memoizedState: currentHook.memoizedState,
 
       baseState: currentHook.baseState,
@@ -633,7 +633,7 @@ function updateReducer<S, I, A>(
       const pendingFirst = pendingQueue.next; // 环状链表pendingQueue为最后一个update,pendingQueue.next为第一个update
       baseQueue.next = pendingFirst;
       // 新的pendingQueue环状链表和上一轮剩余的update形成的baseQueue环状链表生成新的pendingQueue环状链表
-      // 类组件的fiber.updateQueue.shared环状链表执行更新时会被剪开，函数组件不会剪开，通过do...while遍历，当回到第一个update时终止便利
+      // 类组件的fiber.updateQueue.shared环状链表执行更新时会被剪开，函数组件不会剪开，通过do...while遍历，当回到第一个update时终止遍历
       pendingQueue.next = baseFirst;
     }
     current.baseQueue = baseQueue = pendingQueue;
@@ -714,7 +714,7 @@ function updateReducer<S, I, A>(
 
     // Mark that the fiber performed work, but only if the new state is
     // different from the current state.
-    if (!is(newState, hook.memoizedState)) { //  state改变需要更新，不需要跟新会执行bailoutHooks
+    if (!is(newState, hook.memoizedState)) { //  state改变需要更新，不需要更新会执行bailoutHooks
       markWorkInProgressReceivedUpdate();
     }
 

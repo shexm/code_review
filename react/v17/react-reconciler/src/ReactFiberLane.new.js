@@ -200,10 +200,11 @@ export function getNextLanes(root: FiberRoot, wipLanes: Lanes): Lanes {
   // even if the work is suspended.
   const nonIdlePendingLanes = pendingLanes & NonIdleLanes;
   if (nonIdlePendingLanes !== NoLanes) {
+    // 删除非闲置lanes中阻塞的lanes
     const nonIdleUnblockedLanes = nonIdlePendingLanes & ~suspendedLanes;
     if (nonIdleUnblockedLanes !== NoLanes) {
       nextLanes = getHighestPriorityLanes(nonIdleUnblockedLanes);
-    } else {
+    } else { // 都是阻塞的lanes
       const nonIdlePingedLanes = nonIdlePendingLanes & pingedLanes;
       if (nonIdlePingedLanes !== NoLanes) {
         nextLanes = getHighestPriorityLanes(nonIdlePingedLanes);
@@ -213,8 +214,10 @@ export function getNextLanes(root: FiberRoot, wipLanes: Lanes): Lanes {
     // The only remaining work is Idle.
     const unblockedLanes = pendingLanes & ~suspendedLanes;
     if (unblockedLanes !== NoLanes) {
+      // 闲置非阻塞
       nextLanes = getHighestPriorityLanes(unblockedLanes);
     } else {
+      // 闲置阻塞有RetryLanes
       if (pingedLanes !== NoLanes) {
         nextLanes = getHighestPriorityLanes(pingedLanes);
       }
@@ -323,7 +326,7 @@ export function getMostRecentEventTime(root: FiberRoot, lanes: Lanes): number {
 
   return mostRecentEventTime;
 }
-
+// 计算任务过期时间
 function computeExpirationTime(lane: Lane, currentTime: number) {
   switch (lane) {
     case SyncLane:
@@ -407,7 +410,7 @@ export function markStarvedLanesAsExpired(
     const index = pickArbitraryLaneIndex(lanes);
     const lane = 1 << index;
 
-    const expirationTime = expirationTimes[index];
+    const expirationTime = expirationTimes[index]; // 优先级过期时间
     if (expirationTime === NoTimestamp) {
       // Found a pending lane with no expiration time. If it's not suspended, or
       // if it's pinged, assume it's CPU-bound. Compute a new expiration time
@@ -421,10 +424,10 @@ export function markStarvedLanesAsExpired(
       }
     } else if (expirationTime <= currentTime) {
       // This lane expired
-      root.expiredLanes |= lane;
+      root.expiredLanes |= lane; // 这个优先级过期了，root.expiredLanes添加
     }
 
-    lanes &= ~lane;
+    lanes &= ~lane; // lanes删除lane
   }
 }
 
@@ -651,7 +654,7 @@ export function markRootFinished(root: FiberRoot, remainingLanes: Lanes) {
   const expirationTimes = root.expirationTimes;
 
   // Clear the lanes that no longer have pending work
-  let lanes = noLongerPendingLanes;
+  let lanes = noLongerPendingLanes; // 完成的lanes
   while (lanes > 0) {
     const index = pickArbitraryLaneIndex(lanes);
     const lane = 1 << index;

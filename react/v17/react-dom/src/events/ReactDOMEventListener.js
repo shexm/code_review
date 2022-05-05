@@ -289,10 +289,11 @@ export function attemptToDispatchEvent(
   // We're not blocked on anything.
   return null;
 }
-
+// 根据事件名获取事件优先级，事件优先级转为对应的调度优先级，过期任务调度优先级会变成最高级，事件优先级也会变成最高级
 export function getEventPriority(domEventName: DOMEventName): * {
   switch (domEventName) {
     // Used by SimpleEventPlugin:
+    //离散型优先级，触发频率低，优先级最高，需要马上处理
     case 'cancel':
     case 'click':
     case 'close':
@@ -350,6 +351,7 @@ export function getEventPriority(domEventName: DOMEventName): * {
     case 'select':
     case 'selectstart':
       return DiscreteEventPriority;
+    // 连续型优先级，触发频率高，优先级较低
     case 'drag':
     case 'dragenter':
     case 'dragexit':
@@ -372,6 +374,8 @@ export function getEventPriority(domEventName: DOMEventName): * {
     case 'pointerenter':
     case 'pointerleave':
       return ContinuousEventPriority;
+    // react更新使用messageChannel事件，根据调度优先级决定事件优先级，
+    // 一个低事件优先级的事件如果一直没有执行导致过期那他的调度优先级会变成最高级，任务立即执行，如果没有过期，根据原来调度优先级所对应的事件优先级绝对事件优先级
     case 'message': {
       // We might be in the Scheduler callback.
       // Eventually this mechanism will be replaced by a check

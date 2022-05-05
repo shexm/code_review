@@ -80,7 +80,7 @@ ReactDOMRoot.prototype.render = function(children: ReactNodeList): void {
           'To execute a side effect after rendering, declare it in a component body with useEffect().',
       );
     }
-    const container = root.containerInfo;
+    const container = root.containerInfo; // 根DOM元素
 
     if (container.nodeType !== COMMENT_NODE) {
       const hostInstance = findHostInstanceWithNoPortals(root.current);
@@ -144,8 +144,8 @@ export function createRoot(
         ? options.unstable_concurrentUpdatesByDefault
         : null;
   }
-
-  const root = createContainer(
+  // 
+  const root = createContainer( // 返回current属性指向fiberRoot的fiberRootNode
     container,
     ConcurrentRoot,
     hydrate,
@@ -153,6 +153,7 @@ export function createRoot(
     isStrictMode,
     concurrentUpdatesByDefaultOverride,
   );
+  // 根DOM元素与rootFiber绑定
   markContainerAsRoot(root.current, container);
 
   const rootContainerElement =

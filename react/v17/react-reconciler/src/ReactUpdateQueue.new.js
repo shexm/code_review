@@ -203,7 +203,7 @@ export function createUpdate(eventTime: number, lane: Lane): Update<*> {
     lane,
 
     tag: UpdateState,
-    payload: null,
+    payload: null, // {element:[]}
     callback: null,
 
     next: null,
@@ -455,7 +455,7 @@ function getStateFromUpdate<State>(
   return prevState;
 }
 
-export function processUpdateQueue<State>( // 类组件执行setState产生的Update
+export function processUpdateQueue<State>( // 类组件执行setState产生的Update 更新state
   workInProgress: Fiber,
   props: any,
   instance: any,
@@ -471,7 +471,7 @@ export function processUpdateQueue<State>( // 类组件执行setState产生的Up
   }
 
   let firstBaseUpdate = queue.firstBaseUpdate;
-  let lastBaseUpdate = queue.lastBaseUpdate;
+  let lastBaseUpdate = queue.lastBaseUpdate; // 存放从第一个被跳过的更新开始之后产生的更新
 
   // Check if there are pending updates. If so, transfer them to the base queue.
   let pendingQueue = queue.shared.pending;
@@ -480,42 +480,46 @@ export function processUpdateQueue<State>( // 类组件执行setState产生的Up
 
     // The pending queue is circular. Disconnect the pointer between first
     // and last so that it's non-circular.
+    // 剪开环状链表
     const lastPendingUpdate = pendingQueue;
     const firstPendingUpdate = lastPendingUpdate.next;
-    lastPendingUpdate.next = null;
+    lastPendingUpdate.next = null; // 更新4<-更新3<-更新2<-更新1
     // Append pending updates to base queue
-    if (lastBaseUpdate === null) {
-      firstBaseUpdate = firstPendingUpdate;
+    if (lastBaseUpdate === null) { // 这里queue.lastBaseUpdate还是null
+      firstBaseUpdate = firstPendingUpdate; // 更新1
     } else {
-      lastBaseUpdate.next = firstPendingUpdate;
+      lastBaseUpdate.next = firstPendingUpdate; // 更新0->更新1->更新2->更新3->更新4
     }
-    lastBaseUpdate = lastPendingUpdate;
+    // 更新4 更新4<-更新3<-更新2<-更新1
+    lastBaseUpdate = lastPendingUpdate; // 变量重新赋值为断开的环状链表中最后添加的更新
 
     // If there's a current queue, and it's different from the base queue, then
     // we need to transfer the updates to that queue, too. Because the base
     // queue is a singly-linked list with no cycles, we can append to both
     // lists and take advantage of structural sharing.
     // TODO: Pass `current` as argument
-    const current = workInProgress.alternate;
-    if (current !== null) {
+    const current = workInProgress.alternate; // 上次commit之后wip树变成current树保留了未完成被跳过的更新
+    if (current !== null) { // 更新update
+      // current fiber 和 wip fiber 保持一致，这样如果本次更新任务被取消，后面重新执行能通过current fiber获取之前的更新，
+      // 每次执行更新之前都会将current fiber的更新队列复制到wip fiber的更新队列上
       // This is always non-null on a ClassComponent or HostRoot
       const currentQueue: UpdateQueue<State> = (current.updateQueue: any);
       const currentLastBaseUpdate = currentQueue.lastBaseUpdate;
-      if (currentLastBaseUpdate !== lastBaseUpdate) {
-        if (currentLastBaseUpdate === null) {
-          currentQueue.firstBaseUpdate = firstPendingUpdate;
+      if (currentLastBaseUpdate !== lastBaseUpdate) { // 更新对象不一样现在有新的更新
+        if (currentLastBaseUpdate === null) { // 之前没有被跳过的任务
+          currentQueue.firstBaseUpdate = firstPendingUpdate; // 更新1->更新2->更新3->更新4
         } else {
-          currentLastBaseUpdate.next = firstPendingUpdate;
+          currentLastBaseUpdate.next = firstPendingUpdate; // 之前还有被跳过的更新和现在的更新链表拼接在一起
         }
-        currentQueue.lastBaseUpdate = lastPendingUpdate;
+        currentQueue.lastBaseUpdate = lastPendingUpdate; // lastBaseUpdate指向新链表最后一个更新
       }
     }
   }
 
   // These values may change as we process the queue.
-  if (firstBaseUpdate !== null) {
+  if (firstBaseUpdate !== null) { // wip fiber获取queue.shared.pending链表剪开后的第一个更新
     // Iterate through the list of updates to compute the result.
-    let newState = queue.baseState;
+    let newState = queue.baseState; // 上次第一个被跳过update的state或者没有被跳过的update是最终的state
     // TODO: Don't need to accumulate this. Instead, we can remove renderLanes
     // from the original lanes.
     let newLanes = NoLanes;
@@ -529,6 +533,7 @@ export function processUpdateQueue<State>( // 类组件执行setState产生的Up
       const updateLane = update.lane;
       const updateEventTime = update.eventTime;
       if (!isSubsetOfLanes(renderLanes, updateLane)) {
+        // 优先级不足跳过更新
         // Priority is insufficient. Skip this update. If this is the first
         // skipped update, the previous update/state is the new base
         // update/state.
@@ -542,19 +547,20 @@ export function processUpdateQueue<State>( // 类组件执行setState产生的Up
 
           next: null,
         };
-        if (newLastBaseUpdate === null) {
+        if (newLastBaseUpdate === null) { // 第一个被跳过的
           newFirstBaseUpdate = newLastBaseUpdate = clone;
-          newBaseState = newState;
+          newBaseState = newState; // 被跳过之前的state，重新执行被跳过的任务时state的依据
         } else {
           newLastBaseUpdate = newLastBaseUpdate.next = clone;
         }
         // Update the remaining priority in the queue.
-        newLanes = mergeLanes(newLanes, updateLane);
-      } else {
+        newLanes = mergeLanes(newLanes, updateLane); // 合并被跳过任务的优先级，下次执行再选择优先级足够的任务执行
+      } else { // 优先级足够
         // This update does have sufficient priority.
 
-        if (newLastBaseUpdate !== null) {
-          const clone: Update<State> = {
+        if (newLastBaseUpdate !== null) { 
+          // 之前有更新被跳过了，这个不是第一个任务，所以下次更新时这个更新会再执行一次，保证数据最终和更新按时间先后执行的结果一致
+          const clone: Update<State> = { // 因为之前执行过了，所以将lane设置为NoLane，保证下次执行不会被跳过
             eventTime: updateEventTime,
             // This update is going to be committed so we never want uncommit
             // it. Using NoLane works because 0 is a subset of all bitmasks, so
@@ -578,7 +584,7 @@ export function processUpdateQueue<State>( // 类组件执行setState产生的Up
           newState,
           props,
           instance,
-        );
+        ); // 计算state
         const callback = update.callback;
         if (
           callback !== null &&
@@ -597,25 +603,25 @@ export function processUpdateQueue<State>( // 类组件执行setState产生的Up
       }
       update = update.next;
       if (update === null) {
-        pendingQueue = queue.shared.pending;
-        if (pendingQueue === null) {
+        pendingQueue = queue.shared.pending; // wip树 更新4<-更新3<-更新2<-更新1
+        if (pendingQueue === null) { // wip树 没有更新了
           break;
-        } else {
+        } else { // wip树 还有更新
           // An update was scheduled from inside a reducer. Add the new
           // pending updates to the end of the list and keep processing.
-          const lastPendingUpdate = pendingQueue;
+          const lastPendingUpdate = pendingQueue; // wip树 更新4
           // Intentionally unsound. Pending updates form a circular list, but we
           // unravel them when transferring them to the base queue.
-          const firstPendingUpdate = ((lastPendingUpdate.next: any): Update<State>);
-          lastPendingUpdate.next = null;
-          update = firstPendingUpdate;
+          const firstPendingUpdate = ((lastPendingUpdate.next: any): Update<State>); // wip树 更新1
+          lastPendingUpdate.next = null; // 断开wip树的环
+          update = firstPendingUpdate; // 从wip树第一个更新开始执行
           queue.lastBaseUpdate = lastPendingUpdate;
           queue.shared.pending = null;
         }
       }
     } while (true);
 
-    if (newLastBaseUpdate === null) {
+    if (newLastBaseUpdate === null) { // 所有更新都执行完，最终的state
       newBaseState = newState;
     }
 
@@ -648,7 +654,7 @@ export function processUpdateQueue<State>( // 类组件执行setState产生的Up
     // that regardless.
     markSkippedUpdateLanes(newLanes);
     workInProgress.lanes = newLanes;
-    workInProgress.memoizedState = newState;
+    workInProgress.memoizedState = newState; // 临时计算的state
   }
 
   if (__DEV__) {

@@ -245,7 +245,7 @@ export function createContainer(
   isStrictMode: boolean,
   concurrentUpdatesByDefaultOverride: null | boolean,
 ): OpaqueRoot {
-  return createFiberRoot(
+  return createFiberRoot( // 创建rootFiber，fiber树的根结点
     containerInfo,
     tag,
     hydrate,
@@ -260,14 +260,13 @@ export function updateContainer(
   container: OpaqueRoot,
   parentComponent: ?React$Component<any, any>,
   callback: ?Function,
-): Lane {
+): Lane { // ReactDOMRoot实例调用
   if (__DEV__) {
     onScheduleRoot(container, element);
   }
-  const current = container.current;
+  const current = container.current; // 正在使用的fiber树
   const eventTime = requestEventTime();
   const lane = requestUpdateLane(current);
-
   if (enableSchedulingProfiler) {
     markRenderScheduled(lane);
   }
@@ -314,8 +313,9 @@ export function updateContainer(
     }
     update.callback = callback;
   }
-
+  // shared.pending排队，形成回环
   enqueueUpdate(current, update, lane);
+  // 调度更新机制
   const root = scheduleUpdateOnFiber(current, lane, eventTime);
   if (root !== null) {
     entangleTransitions(root, current, lane);

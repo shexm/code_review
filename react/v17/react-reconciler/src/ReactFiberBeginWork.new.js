@@ -254,7 +254,7 @@ export function reconcileChildren(
     // won't update its child set by applying minimal side-effects. Instead,
     // we will add them all to the child before it gets rendered. That means
     // we can optimize this reconciliation pass by not tracking side-effects.
-    workInProgress.child = mountChildFibers(
+    workInProgress.child = mountChildFibers( // ChildReconciler(false);
       workInProgress,
       null,
       nextChildren,
@@ -267,7 +267,7 @@ export function reconcileChildren(
 
     // If we had any progressed work already, that is invalid at this point so
     // let's throw it out.
-    workInProgress.child = reconcileChildFibers(
+    workInProgress.child = reconcileChildFibers( // ChildReconciler(true);
       workInProgress,
       current.child,
       nextChildren,
@@ -336,7 +336,7 @@ function updateForwardRef(
       renderLanes,
     );
 
-  if (current !== null && !didReceiveUpdate) { // 不需要更新
+  if (current !== null && !didReceiveUpdate) { // 有更新
     bailoutHooks(current, workInProgress, renderLanes);
     return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes);
   }
@@ -448,7 +448,7 @@ function updateSimpleMemoComponent(
         // TODO: Move the reset at in beginWork out of the common path so that
         // this is no longer necessary.
         workInProgress.lanes = current.lanes;
-        return bailoutOnAlreadyFinishedWork(
+        return bailoutOnAlreadyFinishedWork( // 跳过更新
           current,
           workInProgress,
           renderLanes,
@@ -460,10 +460,10 @@ function updateSimpleMemoComponent(
       }
     }
   }
-  return updateFunctionComponent(
+  return updateFunctionComponent( // 返回第一个child
     current,
     workInProgress,
-    Component,
+    Component, // 函数组件的函数
     nextProps,
     renderLanes,
   );
@@ -764,14 +764,14 @@ function updateFunctionComponent(
       context,
       renderLanes,
     );
-  if (current !== null && !didReceiveUpdate) { // 不需要更新
+  if (current !== null && !didReceiveUpdate) {
     bailoutHooks(current, workInProgress, renderLanes);
     return bailoutOnAlreadyFinishedWork(current, workInProgress, renderLanes);
   }
 
   // React DevTools reads this flag.
   workInProgress.flags |= PerformedWork;
-  reconcileChildren(current, workInProgress, nextChildren, renderLanes);
+  reconcileChildren(current, workInProgress, nextChildren, renderLanes); // 生成子节点的wip fiber
   return workInProgress.child;
 }
 
@@ -808,8 +808,8 @@ function updateClassComponent(
       workInProgress.flags |= Placement;
     }
     // In the initial pass we might need to construct the instance.
-    constructClassInstance(workInProgress, Component, nextProps);
-    mountClassInstance(workInProgress, Component, nextProps, renderLanes);
+    constructClassInstance(workInProgress, Component, nextProps); // 实例化类组件
+    mountClassInstance(workInProgress, Component, nextProps, renderLanes); // 设置context属性，执行render函数之前的生命周期，打flags，初始化updateQueue更新队列
     shouldUpdate = true;
   } else if (current === null) { // wip有组件实例，current没有组件（wip实例已创建，current为空）
     // In a resume, we'll already have an instance we can reuse.
@@ -820,7 +820,8 @@ function updateClassComponent(
       renderLanes,
     );
   } else { // wip有组件实例，current有组件
-    shouldUpdate = updateClassInstance( // 会调用processUpdateQueue执行update,更新state
+    shouldUpdate = updateClassInstance(
+      // 会调用processUpdateQueue执行update,更新state，执行render函数之前的生命周期，包括已经废弃的生命周期
       current,
       workInProgress,
       Component,
@@ -828,7 +829,7 @@ function updateClassComponent(
       renderLanes,
     );
   }
-  const nextUnitOfWork = finishClassComponent(
+  const nextUnitOfWork = finishClassComponent( // 调用了render函数
     current,
     workInProgress,
     Component,
@@ -848,7 +849,7 @@ function finishClassComponent(
   renderLanes: Lanes,
 ) {
   // Refs should update even if shouldComponentUpdate returns false
-  markRef(current, workInProgress);
+  markRef(current, workInProgress); // 判断ref是否有更新，如果有就打上Ref的flags，commit阶段生成DOM再绑定
 
   const didCaptureError = (workInProgress.flags & DidCapture) !== NoFlags;
 
@@ -958,7 +959,7 @@ function updateHostRoot(current, workInProgress, renderLanes) {
   const prevState = workInProgress.memoizedState;
   const prevChildren = prevState.element;
   cloneUpdateQueue(current, workInProgress);
-  processUpdateQueue(workInProgress, nextProps, null, renderLanes);
+  processUpdateQueue(workInProgress, nextProps, null, renderLanes); // 处理更新队列
   const nextState = workInProgress.memoizedState;
 
   const root: FiberRoot = workInProgress.stateNode;
@@ -2819,6 +2820,7 @@ function bailoutOnAlreadyFinishedWork(
   }
 
   // 标记workInProgressRootSkippedLanes，将wip fiber被跳过的lanes合并到workInProgressRootSkippedLanes
+  // 被跳过可能优先级不足可能本身不需要更新
   markSkippedUpdateLanes(workInProgress.lanes);
 
   // Check if the children have any pending work.
@@ -2954,7 +2956,7 @@ function beginWork(
     ) { // 需要更新
       // If props or context changed, mark the fiber as having performed work.
       // This may be unset if the props are determined to be equal later (memo).
-      didReceiveUpdate = true;
+      didReceiveUpdate = true; // props改变，需要更新
     } else if (!includesSomeLane(renderLanes, updateLanes)) { // 不需要更新 当前任务的更新优先级不包括fiber上的更新优先级，可能不需要更新可能更新的优先级不够被跳过
       didReceiveUpdate = false;
       // This fiber does not have any pending work. Bailout without entering
@@ -3220,11 +3222,11 @@ function beginWork(
           ? unresolvedProps
           : resolveDefaultProps(Component, unresolvedProps);
       return updateFunctionComponent(
-        current,
-        workInProgress,
-        Component,
-        resolvedProps,
-        renderLanes,
+        current, // 正在使用的fiber
+        workInProgress, // 正在创建的fiber
+        Component, // 函数
+        resolvedProps, // 属性
+        renderLanes, // 渲染优先级
       );
     }
     case ClassComponent: {
